@@ -128,11 +128,9 @@ User: {user_input}
 
 # ------------------ AGENT EXECUTION ------------------ #
 def run_agent(user_input):
-    # ALWAYS try to retrieve context
-    context_chunks = retrieve(user_input, st.session_state.docs) 
-
-    # If we have document context → use RAG directly
-    if context_chunks:
+    # 🔥 FORCE RAG if documents exist
+    if st.session_state.docs:
+        context_chunks = retrieve(user_input, st.session_state.docs)
         context = "\n".join(context_chunks)
 
         response = client.chat.completions.create(
@@ -140,7 +138,7 @@ def run_agent(user_input):
             messages=[
                 {
                     "role": "system",
-                    "content": "Answer ONLY from the provided context. If not found, say 'Not in document'."
+                    "content": "Answer ONLY using the provided document context."
                 },
                 {
                     "role": "user",
@@ -151,33 +149,13 @@ def run_agent(user_input):
 
         return response.choices[0].message.content
 
-    # If no context → fallback to agent tools
-    decision = decide(user_input)
+    # fallback (no document)
+    response = client.chat.completions.create(
+        model=model,
+        messages=st.session_state.messages
+    )
 
-    try:
-        lines = decision.split("\n")
-        type_line = [l for l in lines if "TYPE:" in l][0]
-        input_line = [l for l in lines if "INPUT:" in l][0]
-
-        task_type = type_line.replace("TYPE:", "").strip()
-        task_input = input_line.replace("INPUT:", "").strip()
-
-    except:
-        task_type = "CHAT"
-        task_input = user_input
-
-    if task_type == "CALC":
-        return f"🧮 {safe_eval(task_input)}"
-
-    elif task_type == "PYTHON":
-        return f"🐍 {python_tool(task_input)}"
-
-    else:
-        response = client.chat.completions.create(
-            model=model,
-            messages=st.session_state.messages
-        )
-        return response.choices[0].message.content
+    return response.choices[0].message.content
 
 # ------------------ UI ------------------ #
 for msg in st.session_state.messages:
