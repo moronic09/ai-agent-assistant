@@ -4,6 +4,9 @@ from rag import store_document, retrieve
 import ast
 import operator
 
+if "docs" not in st.session_state:
+    st.session_state.docs = []
+
 # ------------------ CONFIG ------------------ #
 st.set_page_config(page_title="AI Agent Assistant", layout="centered")
 st.title("🤖 AI Agent Assistant")
@@ -13,7 +16,7 @@ st.sidebar.markdown("## 📄 Upload PDF")
 uploaded_file = st.sidebar.file_uploader("Upload your file", type=["pdf"])
 
 if uploaded_file:
-    store_document(uploaded_file)
+    store_document(uploaded_file, st.session_state.docs)
     st.sidebar.success("Document added!")
 
 st.markdown("### 💡 Hey! Moroni here! How can I help you?")
@@ -125,6 +128,30 @@ User: {user_input}
 
 # ------------------ AGENT EXECUTION ------------------ #
 def run_agent(user_input):
+    # ALWAYS try to retrieve context
+    context_chunks = retrieve(user_input, st.session_state.docs)
+
+    # If we have document context → use RAG directly
+    if context_chunks:
+        context = "\n".join(context_chunks)
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Answer ONLY from the provided context. If not found, say 'Not in document'."
+                },
+                {
+                    "role": "user",
+                    "content": f"Context:\n{context}\n\nQuestion:\n{user_input}"
+                }
+            ]
+        )
+
+        return response.choices[0].message.content
+
+    # If no context → fallback to agent tools
     decision = decide(user_input)
 
     try:
@@ -140,33 +167,16 @@ def run_agent(user_input):
         task_input = user_input
 
     if task_type == "CALC":
-        result = safe_eval(task_input)
-        return f"🧮 Result: {result}"
+        return f"🧮 {safe_eval(task_input)}"
 
     elif task_type == "PYTHON":
-        result = python_tool(task_input)
-        return f"🐍 Output: {result}"
-
-    elif task_type == "RAG":
-        context_chunks = retrieve(task_input)
-        context = "\n".join(context_chunks)
-
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "Answer using context."},
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion:\n{task_input}"}
-            ]
-        )
-
-        return response.choices[0].message.content
+        return f"🐍 {python_tool(task_input)}"
 
     else:
         response = client.chat.completions.create(
             model=model,
             messages=st.session_state.messages
         )
-
         return response.choices[0].message.content
 
 # ------------------ UI ------------------ #
@@ -186,3 +196,4 @@ if user_input:
 
     st.chat_message("assistant").write(reply)
     st.session_state.messages.append({"role": "assistant", "content": reply})
+    st.info("📄 Ask questions about your uploaded PDF")
