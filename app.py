@@ -3,6 +3,7 @@ from rag import store_document, retrieve
 from groq import Groq
 import ast
 import operator
+import chromadb
 
 # ------------------ CONFIG ------------------ #
 st.set_page_config(page_title="AI Agent Assistant", layout="centered")
