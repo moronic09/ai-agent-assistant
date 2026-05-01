@@ -1,9 +1,8 @@
 import streamlit as st
-from rag import store_document, retrieve
 from groq import Groq
+from rag import store_document, retrieve
 import ast
 import operator
-import chromadb
 
 # ------------------ CONFIG ------------------ #
 st.set_page_config(page_title="AI Agent Assistant", layout="centered")
@@ -64,8 +63,8 @@ operators = {
 
 def safe_eval(expr):
     def eval_node(node):
-        if isinstance(node, ast.Num):
-            return node.n
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
         elif isinstance(node, ast.BinOp):
             return operators[type(node.op)](
                 eval_node(node.left),
@@ -140,17 +139,14 @@ def run_agent(user_input):
         task_type = "CHAT"
         task_input = user_input
 
-    # ------------------ CALC ------------------ #
     if task_type == "CALC":
         result = safe_eval(task_input)
         return f"🧮 Result: {result}"
 
-    # ------------------ PYTHON ------------------ #
     elif task_type == "PYTHON":
         result = python_tool(task_input)
         return f"🐍 Output: {result}"
 
-    # ------------------ RAG ------------------ #
     elif task_type == "RAG":
         context_chunks = retrieve(task_input)
         context = "\n".join(context_chunks)
@@ -165,7 +161,6 @@ def run_agent(user_input):
 
         return response.choices[0].message.content
 
-    # ------------------ CHAT ------------------ #
     else:
         response = client.chat.completions.create(
             model=model,
