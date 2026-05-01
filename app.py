@@ -129,7 +129,7 @@ User: {user_input}
 # ------------------ AGENT EXECUTION ------------------ #
 def run_agent(user_input):
     # ALWAYS try to retrieve context
-    context_chunks = retrieve(user_input, st.session_state.docs)
+    context_chunks = retrieve(user_input, st.session_state.docs) 
 
     # If we have document context → use RAG directly
     if context_chunks:
